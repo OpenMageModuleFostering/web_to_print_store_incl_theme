@@ -1,7 +1,5 @@
 <?php
-/**
- * OpenERP data helper
- */
+
 class ZetaPrints_WebToPrint_Helper_Data extends Mage_Core_Helper_Abstract
   implements ZetaPrints_Api {
 
@@ -262,10 +260,19 @@ class ZetaPrints_WebToPrint_Helper_Data extends Mage_Core_Helper_Abstract
 
     //connecting to DB
     $db = Mage::getSingleton('core/resource')->getConnection('core_write');
+
+    //Extract $id and $password vars
+    extract($credentials);
+
     //adding password to DB
-    $db->insert('zetaprints_cookies',
-                array('user_id' => $credentials['id'],
-                      'pass'=> $credentials['password']) );
+    $updated_rows = $db->update('zetaprints_cookies',
+                                array('pass' => $password),
+                                array('user_id = ?' => $id));
+
+    if ($updated_rows = 0)
+      $db->insert('zetaprints_cookies',
+                  array('user_id' => $id,
+                        'pass'=> $password) );
   }
 
   function restore_zp_cookie ($id) {
@@ -628,3 +635,47 @@ class ZetaPrints_WebToPrint_Helper_Data extends Mage_Core_Helper_Abstract
       ->save();
   }
 }
+
+function wrong_id_hash_combo_handler ($error) {
+  if (isset($error['previous'])
+      && $error['previous']['code'] == ZP_ERR_WRONG_ID_HASH_COMBO)
+    return false;
+
+  $helper = Mage::helper('webtoprint');
+
+  //Extract $id and $password variables
+  extract($helper->get_zetaprints_credentials());
+
+  $password = zetaprints_generate_password();
+
+  $url = Mage::getStoreConfig('webtoprint/settings/url');
+  $key = Mage::getStoreConfig('webtoprint/settings/key');
+
+  if (!zetaprints_register_user($url, $key, $id, $password))
+    return false;
+
+  $helper->set_credentials_to_zp_cookie(compact('id', 'password'));
+
+  $session = Mage::getSingleton('customer/session');
+
+  if ($session->isLoggedIn())
+    $session
+      ->getCustomer()
+      ->setZetaprintsUser($id)
+      ->setZetaprintsPassword($password)
+      ->save();
+  else
+    $session
+      ->setZetaprintsUser($id)
+      ->setZetaprintsPassword($password);
+
+  $post = array(
+    'ID' => $id,
+    'Hash'=> zetaprints_generate_user_password_hash($password)
+  );
+
+  return compact('post');
+}
+
+zp_register_error_handler(ZP_ERR_WRONG_ID_HASH_COMBO,
+                          'wrong_id_hash_combo_handler');
