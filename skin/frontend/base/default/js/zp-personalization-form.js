@@ -297,7 +297,7 @@ function personalization_form ($) {
   //If update_first_preview_on_load parameter was set
   if (this.update_first_preview_on_load)
     //Update preview for the first page
-    update_preview({ data: { zp: this } }, true);
+    update_preview({ data: { zp: this } }, zp.preserve_fields);
 
   //Create array for preview images sharing links
   if (window.place_preview_image_sharing_link)
@@ -570,6 +570,11 @@ function personalization_form ($) {
     //                          zp.template_details.pages[zp.current_page].shapes,
     //                          $product_image_box,
     //                          shape_handler);
+
+    if ($('#zp-dataset-page-' + zp.current_page).length)
+      $('#zp-dataset-button').removeClass('hidden');
+    else
+      $('#zp-dataset-button').addClass('hidden');
 
     if (can_show_next_page_button_for_page(zp.current_page, zp))
       $next_page_button.show();

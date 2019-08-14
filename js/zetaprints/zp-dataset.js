@@ -22,7 +22,7 @@ window.zp_dataset_initialise = function (zp) {
               .filter(':not(.zp-dataset-checkbox)');
 
   $td
-    .mouseenter(function (event) {
+    /*.mouseenter(function (event) {
       $popup = $(this).children('.zp-dataset-popup');
 
       if (!$popup.length)
@@ -53,7 +53,7 @@ window.zp_dataset_initialise = function (zp) {
         .css({
           top: event.pageY + 15,
           left: event.pageX + 15 });
-    })
+    })*/
     .click(function () {
       var $this = $(this);
 
@@ -146,12 +146,17 @@ window.zp_dataset_initialise = function (zp) {
       $tr.addClass('zp-dataset-selected');
     });
 
-  $('#zp-dataset-button').click(function () {
+  var $button = $('#zp-dataset-button');
+
+  $button.click(function () {
     $.fancybox({
       'type': 'inline',
       'href': '#zp-dataset-page-' + zp.current_page
     });
   });
+
+  if ($('#zp-dataset-page-' + zp.current_page).length)
+    $button.removeClass('hidden');
 }
 
 window.zp_dataset_update_state = function (zp, name, state) {

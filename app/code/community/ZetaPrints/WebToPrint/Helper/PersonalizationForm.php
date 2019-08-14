@@ -1016,9 +1016,7 @@ jQuery(document).ready(function($) {
             <td class="<?php echo $fieldNames[$number]; ?>">
               <?php foreach ($data['lines'] as $line => $text): ?>
 
-              <p <?php if (!$line): ?>class="zp-dataset-first-line"<?php endif ?>>
-                <?php echo $text; ?>
-              </p>
+              <p <?php if (!$line): ?>class="zp-dataset-first-line"<?php endif ?>><?php echo $text; ?></p>
 
               <?php endforeach ?>
             </td>
@@ -1038,7 +1036,7 @@ jQuery(document).ready(function($) {
 
   <?php $title = $this->__('Database look-up'); ?>
 
-  <button id="zp-dataset-button" class="button" title="<?php echo $title; ?>" type="button">
+  <button id="zp-dataset-button" class="button hidden" title="<?php echo $title; ?>" type="button">
     <span><span><?php echo $title; ?></span></span>
   </button>
 
@@ -1098,13 +1096,20 @@ jQuery(document).ready(function($) {
 
     //Check if the product page is opened from the shopping cart
     //to update first preview image for cross-sell products)
-    $isFromShoppingCart = strpos($lastUrl, 'checkout/cart') !== false
-                          && !$product->getConfigureMode();
+    $isFromShoppingCart = strpos($lastUrl, 'checkout/cart') !== false;
 
     $updateFirstPreview = $hasForItem
                           || $hasReorder
                           || $hasUpdateFirstPreview
-                          || $isFromShoppingCart;
+                          || $isFromShoppingCart
+                          || $product->getConfigureMode();
+
+    $preserveFields = $product->getConfigureMode()
+                      || $hasReorder
+                      || $hasUpdateFirstPreview
+                      || $hasForItem;
+
+    $preserveFields = !$preserveFields;
 
     $hasShapes = false;
 
@@ -1119,6 +1124,7 @@ jQuery(document).ready(function($) {
       'template_details' => $details,
       'is_personalization_step' => $this->is_personalization_step($context),
       'update_first_preview_on_load' => $updateFirstPreview,
+      'preserve_fields' => $preserveFields,
       'has_shapes' => $hasShapes,
       'w2p_url' => Mage::getStoreConfig('webtoprint/settings/url'),
       'options' => $this->getCustomOptions(),
