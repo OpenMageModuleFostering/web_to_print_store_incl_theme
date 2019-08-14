@@ -257,26 +257,6 @@
         <webtoprint>
           <file>web-to-print.xml</file>
         </webtoprint>
-
-        <catalog-web-to-print-product>
-          <file>catalog/web-to-print-product.xml</file>
-        </catalog-web-to-print-product>
-
-        <review-web-to-print-product>
-          <file>review/web-to-print-product.xml</file>
-        </review-web-to-print-product>
-
-        <checkout-web-to-print-cart>
-          <file>checkout/web-to-print-cart.xml</file>
-        </checkout-web-to-print-cart>
-
-        <sales-web-to-print-order>
-          <file>sales/web-to-print-order.xml</file>
-        </sales-web-to-print-order>
-
-        <wishlist-web-to-print>
-          <file>wishlist/web-to-print.xml</file>
-        </wishlist-web-to-print>
       </updates>
     </layout>
 
@@ -305,13 +285,13 @@
 
   <admin>
     <routers>
-      <ZetaPrints_WebToPrint>
-        <use>admin</use>
-          <args>
-            <module>ZetaPrints_WebToPrint</module>
-            <frontName>web-to-print-admin</frontName>
-          </args>
-      </ZetaPrints_WebToPrint>
+      <adminhtml>
+        <args>
+          <modules>
+            <ZetaPrints_WebToPrint after="Mage_Adminhtml">ZetaPrints_WebToPrint</ZetaPrints_WebToPrint>
+          </modules>
+        </args>
+      </adminhtml>
     </routers>
   </admin>
 
@@ -371,6 +351,12 @@
         <products-populate-defaults>1</products-populate-defaults>
         <ignore-unpaid-orders>0</ignore-unpaid-orders>
       </settings>
+      <compat>
+
+        <!-- 1 = Yes -->
+        <jquery>1</jquery>
+        <old_theme>no</old_theme>
+      </compat>
     </webtoprint>
   </default>
 </config>

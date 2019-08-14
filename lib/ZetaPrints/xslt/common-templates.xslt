@@ -160,36 +160,40 @@
     <xsl:param name="page" />
 
     <xsl:for-each select="//Images/Image[@Page=$page]">
-      <div class="zetaprints-images-selector no-value minimized block" title="{@Name}">
+      <div class="zetaprints-images-selector no-value minimized" title="{@Name}">
         <xsl:if test="$show-image-field">
-          <xsl:attribute name="class">zetaprints-images-selector no-value block</xsl:attribute>
+          <xsl:attribute name="class">zetaprints-images-selector no-value</xsl:attribute>
         </xsl:if>
 
-        <div class="head block-title">
-          <a class="image up-down" href="#"><span>
-            <xsl:call-template name="trans">
-              <xsl:with-param name="key">Up/Down</xsl:with-param>
-            </xsl:call-template>
-          </span></a>
-          <a class="image collapse-expand" href="#"><span>
-            <xsl:call-template name="trans">
-              <xsl:with-param name="key">Collapse/Expand</xsl:with-param>
-            </xsl:call-template>
-          </span></a>
-          <div class="icon"><span>
-            <xsl:call-template name="trans">
-              <xsl:with-param name="key">Title</xsl:with-param>
-            </xsl:call-template>:
-          </span></div>
-          <div class="title">
-            <label>
+        <div class="head">
+          <div class="icon">
+            <span>
               <xsl:call-template name="trans">
-                <xsl:with-param name="key">
-                  <xsl:value-of select="@Name" />
-                </xsl:with-param>
-              </xsl:call-template>
-            </label>
+                <xsl:with-param name="key">Title</xsl:with-param>
+              </xsl:call-template>:
+            </span>
           </div>
+          <label class="title">
+            <xsl:call-template name="trans">
+              <xsl:with-param name="key">
+                <xsl:value-of select="@Name" />
+              </xsl:with-param>
+            </xsl:call-template>
+          </label>
+          <a class="image up-down" href="#">
+            <span>
+              <xsl:call-template name="trans">
+                <xsl:with-param name="key">Up/Down</xsl:with-param>
+              </xsl:call-template>
+            </span>
+          </a>
+          <a class="image collapse-expand" href="#">
+            <span>
+              <xsl:call-template name="trans">
+                <xsl:with-param name="key">Collapse/Expand</xsl:with-param>
+              </xsl:call-template>
+            </span>
+          </a>
         </div>
         <div id="page-{$page}-tabs-{position()}" class="selector-content">
           <ul class="tab-buttons">
@@ -451,7 +455,6 @@
                 </xsl:call-template>
               </xsl:attribute>
             </img>
-            <br />
             <span>
               <xsl:call-template name="trans">
                 <xsl:with-param name="key">
