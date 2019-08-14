@@ -120,16 +120,6 @@ class ZetaPrints_WebToPrint_Model_Events_Observer implements ZetaPrints_Api {
 
     Mage::getSingleton('core/session')
                                     ->setData('zetaprints-previews', $previews);
-
-    $user_input = array();
-    foreach ($request->getParams() as $key => $value)
-      if (strpos($key, 'zetaprints-') !== false) {
-        $_key = substr($key, 11);
-        $_key = substr($_key, 0, 1).str_replace('_', ' ', substr($_key, 1));
-        $user_input['zetaprints-' . $_key] = str_replace("\r\n", "\\r\\n", $value);
-      }
-
-    Mage::getSingleton('core/session')->setData('zetaprints-user-input', serialize($user_input));
   }
 
   public function set_required_options ($observer) {
@@ -479,6 +469,52 @@ class ZetaPrints_WebToPrint_Model_Events_Observer implements ZetaPrints_Api {
         'url' => $block->getUrl('web-to-print-admin/catalog_product/templates',
                                 array('_current' => true) ),
         'class' => 'ajax' ) );
+  }
+
+  public function registerFormStep ($observer) {
+    Mage::unregister('webtoprint_is_personalisation_step');
+    Mage::register(
+      'webtoprint_is_personalisation_step',
+      Mage::app()->getRequest()->getParam('personalization') == '1',
+      true
+    );
+
+    return $this;
+  }
+
+  public function setUrlForNextStep ($observer) {
+    $block = $observer->getBlock();
+
+    if (!($block instanceof Mage_Catalog_Block_Product_View))
+      return $this;
+
+    if (Mage::registry('webtoprint_is_personalisation_step'))
+      return $this;
+
+    $is2step = (bool) $block
+      ->getLayout()
+      ->getBlock('root')
+      ->getData('webtoprint_2step');
+
+    if (!$is2step)
+      return $this;
+
+    if ($route = Mage::registry('webtoprint_next_step_route')) {
+      $block->setData('submit_route_data', $route);
+
+      return $this;
+    }
+
+    $route = Mage::helper('webtoprint/2step')->getNextStepRoute(
+      $block->getProduct()
+    );
+
+    Mage::unregister('webtoprint_next_step_route');
+
+    Mage::register('webtoprint_next_step_route', $route, true);
+    $block->setData('submit_route_data', $route);
+
+    return $this;
   }
 }
 

@@ -20,7 +20,7 @@
  *
  * @category    design
  * @package     base_default
- * @copyright   Copyright (c) 2012 Magento Inc. (http://www.magentocommerce.com)
+ * @copyright   Copyright (c) 2014 Magento Inc. (http://www.magentocommerce.com)
  * @license     http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  */
 
@@ -59,28 +59,37 @@
 <?php else: ?>
 <p class="product-image">
     <?php
-        $_img = '<img id="image" src="'.$this->helper('catalog/image')->init($_product, 'image')->resize(265).'" alt="'.$this->escapeHtml($this->getImageLabel()).'" title="'.$this->escapeHtml($this->getImageLabel()).'" />';
 
-        /****** ZP-CODE:1 Checking for personalization step and disabling image resizing for
-                products with web-to-print feature ******/
+        /****** ZP-CODE:1 Set correct image type and image label ******/
 
-        if (!$this->helper('webtoprint/personalization-form')->is_personalization_step($this))
-            $this->helper('webtoprint/personalization-form')->get_preview_image($this);
-        else
-            echo $_helper->productAttribute($_product, $_img, 'image');
-
+        $_imageType = $this->helper('webtoprint/2step')->getImageType('image');
+        $_imageLabel = $this->helper('webtoprint/2step')->getImageLabel($this);
 
         /****** ZP-CODE:1 End ******/
+
+        /****** ZP-CODE:2 Add ID attribute to the element.
+                          Replace image type and image label ******/
+
+        $_img = '<img id="image" src="'.$this->helper('catalog/image')->init($_product, $_imageType)->resize(265).'" alt="'.$this->escapeHtml($_imageLabel).'" title="'.$this->escapeHtml($_imageLabel).'" />';
+
+        /****** ZP-CODE:2 End ******/
+
+        /****** ZP-CODE:3 Replace image type ******/
+
+        echo $_helper->productAttribute($_product, $_img, $_imageType);
+
+        /****** ZP-CODE:3 End ******/
+
     ?>
 </p>
 <?php endif; ?>
 
-<!-- /****** ZP-CODE:2 Remove web-to-print images from the gallery
-             on personalization form ******/ -->
+<!-- /****** ZP-CODE:4 Remove web-to-print images from the gallery
+                       on personalisation form ******/ -->
 
-<?php $this->helper('webtoprint/personalization-form')->prepare_gallery_images($this, true) ?>
+<?php $this->helper('webtoprint/personalization-form')->prepare_gallery_images($this) ?>
 
-<!-- /****** ZP-CODE:2 End ******/ -->
+<!-- /****** ZP-CODE:4 End ******/ -->
 
 <?php if (count($this->getGalleryImages()) > 0): ?>
 <div class="more-views">

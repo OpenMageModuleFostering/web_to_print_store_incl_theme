@@ -105,45 +105,34 @@ class ZetaPrints_WebToPrint_Helper_PersonalizationForm
       }
   }
 
+  /**
+   * @deprecated after 2.3.0.0
+   * @see ZetaPrints_WebToPrint_Helper_2step::isPersonalisationStep()
+   */
   public function is_personalization_step ($context) {
-    return $context->getRequest()->getParam('personalization') == '1';
+    return Mage::registry('webtoprint_is_personalisation_step');
   }
 
+  /**
+   * @deprecated after 2.3.0.0
+   * @see ZetaPrints_WebToPrint_Model_Events_Observer::setUrlForNextStep()
+   */
   public function get_next_step_url ($context) {
-    if (!$this->is_personalization_step($context)) {
-      //Add personalization parameter to URL
-      $params = array('personalization' => '1');
+    $product = $context->getProduct();
 
-      //Check if the product page was requested with reorder parameter
-      //then proxy the parameter to personalization step
-      if ($this->_getRequest()->has('reorder'))
-        $params['reorder'] = $this->_getRequest()->getParam('reorder');
+    if (!Mage::registry('webtoprint_is_personalisation_step'))
+      $context->setData(
+        'submit_route_data',
+        Mage::helper('webtoprint/2step')->getNextStepRoute($product)
+      );
 
-      //Check if the product page was requested with for-item parameter
-      //then proxy the parameter to personalization step and ignore last
-      //visited page (need it to distinguish cross-sell product and already
-      //personalized product)
-      if ($this->_getRequest()->has('for-item'))
-        $params['for-item'] = $this->_getRequest()->getParam('for-item');
-      else
-        //Check that the product page was opened from cart page (need for
-        //automatic first preview update for cross-sell product)
-        if (strpos(Mage::getSingleton('core/session')->getData('last_url'),
-              'checkout/cart') !== false)
-          //Send update-first-preview query parameter to personalization step
-          $params['update-first-preview'] = 1;
+    echo $context->getSubmitUrl($product);
 
-      //Print out url for the product
-      echo $this->create_url_for_product($context->getProduct(), $params);
-
-      return true;
-    }
-    else
-      return false;
+    return true;
   }
 
   public function get_params_from_previous_step ($context) {
-    if (!$this->is_personalization_step($context))
+    if (!Mage::registry('webtoprint_is_personalisation_step'))
       return;
 
     foreach ($_POST as $key => $value) {
@@ -299,13 +288,31 @@ jQuery(document).ready(function($) {
 <?php
   }
 
+  /**
+   * @deprecated after 2.3.0.0
+   * @see ZetaPrints_WebToPrint_Model_Events_Observer::getImageType()
+   * @see ZetaPrints_WebToPrint_Model_Events_Observer::getImageLabel()
+   */
   public function get_preview_image ($context) {
-    if (!$context->getProduct()->getSmallImage())
+    $product = $context->getProduct();
+
+    if (!$product->getSmallImage())
       return false;
 
-    $img = '<img src="' . $context->helper('catalog/image')->init($context->getProduct(), 'small_image')->resize(265) . '" alt="'.$context->htmlEscape($context->getProduct()->getSmallImageLabel()).'" />';
+    $url = $context->helper('catalog/image')
+      ->init($product, 'small_image')
+      ->resize(265);
 
-    echo $context->helper('catalog/output')->productAttribute($context->getProduct(), $img, 'small_image');
+    $label = $this->escapeHtml($context->getImageLabel(null, 'small_image'));
+
+    echo $context->helper('catalog/output')->productAttribute(
+      $product,
+      '<img id="image" src="' . $url
+        . '" alt="' . $label
+        . '" title="' . $label
+        . '" />',
+      'small_image'
+    );
 
     return true;
   }
@@ -402,7 +409,8 @@ jQuery(document).ready(function($) {
     if (!$this->get_template_id($context->getProduct()))
       return false;
 
-    if ($check_for_personalization && !$this->is_personalization_step($context))
+    if ($check_for_personalization
+        && !Mage::registry('webtoprint_is_personalisation_step'))
       return false;
 
     $images = $context->getProduct()->getMediaGalleryImages();
@@ -1076,14 +1084,6 @@ jQuery(document).ready(function($) {
            $name, '" class="zp-hidden" />';
     }
 
-    $session = Mage::getSingleton('core/session');
-
-    if ($session->hasData('zetaprints-previews')) {
-      $userInput = unserialize($session->getData('zetaprints-user-input'));
-
-      $session->unsetData('zetaprints-previews');
-    }
-
     $request = $this->_getRequest();
 
     //Check if the product page is requested with 'for-item' parameter
@@ -1096,7 +1096,7 @@ jQuery(document).ready(function($) {
     //Check if the product page is requested with 'reorder' parameter
     $hasReorder = strlen($request->getParam('reorder')) == 36;
 
-    $lastUrl = $session->getData('last_url');
+    $lastUrl = Mage::getSingleton('core/session')->getData('last_url');
 
     //Check if the product page is opened from the shopping cart
     //to update first preview image for cross-sell products)
@@ -1126,7 +1126,8 @@ jQuery(document).ready(function($) {
 
     $data = json_encode(array(
       'template_details' => $details,
-      'is_personalization_step' => $this->is_personalization_step($context),
+      'is_personalization_step'
+        => Mage::registry('webtoprint_is_personalisation_step'),
       'update_first_preview_on_load' => $updateFirstPreview,
       'preserve_fields' => $preserveFields,
       'has_shapes' => $hasShapes,
@@ -1153,12 +1154,6 @@ var userImageThumbSelected = null;  //user selected image to edit
 // Global vars end
 
 jQuery(document).ready(function($) {
-  <?php
-  if (isset($userInput) && is_array($userInput))
-    foreach ($userInput as $key => $value)
-      echo '$(\'[name="' . $key . '"]\').val(\'' . $value . '\');\n';
-  ?>
-
   zp = <?php echo $data ?>;
 
   edit_button_text = "<?php echo $this->__('Edit');?>";

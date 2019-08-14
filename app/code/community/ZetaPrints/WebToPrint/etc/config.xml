@@ -30,12 +30,6 @@
         </entities>
       </webtoprint_resource>
 
-      <dataflow>
-        <rewrite>
-          <profile_history>ZetaPrints_WebToPrint_Model_Profile_History</profile_history>
-        </rewrite>
-      </dataflow>
-
       <sales>
         <rewrite>
           <quote_item>ZetaPrints_WebToPrint_Model_Quote_Item</quote_item>
@@ -285,6 +279,28 @@
         </wishlist-web-to-print>
       </updates>
     </layout>
+
+    <events>
+      <catalog_controller_product_view>
+        <observers>
+          <webtoprint_register_form_step>
+            <type>singleton</type>
+            <class>ZetaPrints_WebToPrint_Model_Events_Observer</class>
+            <method>registerFormStep</method>
+          </webtoprint_register_form_step>
+        </observers>
+      </catalog_controller_product_view>
+
+      <core_block_abstract_to_html_before>
+        <observers>
+          <webtoprint_set_url_for_next_step>
+            <type>singleton</type>
+            <class>ZetaPrints_WebToPrint_Model_Events_Observer</class>
+            <method>setUrlForNextStep</method>
+          </webtoprint_set_url_for_next_step>
+        </observers>
+      </core_block_abstract_to_html_before>
+    </events>
   </frontend>
 
   <admin>
