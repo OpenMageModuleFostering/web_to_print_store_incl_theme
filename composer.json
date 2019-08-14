@@ -1,0 +1,16 @@
+{
+    "name": "OpenMageModuleFostering/web_to_print_store_incl_theme",
+    "type": "magento-module",
+    "license": "mixed",
+    "homepage": "",
+    "description": "Magento extension for ZetaPrints web-to-print API And Theme",
+    "authors": [
+    {
+        "name": "Anatoly A. Kazantsev",
+        "email": "anatoly@zetaprints.com"
+    }
+],
+    "suggest": {
+        "magento-hackathon/magento-composer-installer": "*"
+    }
+}
