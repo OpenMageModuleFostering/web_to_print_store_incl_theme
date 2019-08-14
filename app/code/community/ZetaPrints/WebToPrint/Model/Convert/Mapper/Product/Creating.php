@@ -13,6 +13,9 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
     $this->warning('Product type: ' .
                        $this->getAction()->getParam('product-type', 'simple') );
 
+    if (!$assignToWebsites = $this->_getWebsitesForAssign())
+      return;
+
     //Get all web-to-print templates
     $templates = Mage::getModel('webtoprint/template')->getCollection()->load();
 
@@ -74,12 +77,25 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
 
     $_catalogues = array();
 
+    $categoryMappingStore = $this
+                              ->getAction()
+                              ->getParam('category-mapping-store');
+
+    $categoryMappingStore = Mage::app()->getStore($categoryMappingStore);
+
+    $assignToParents = (bool) $this
+                                ->getAction()
+                                ->getParam('assign-to-parents');
+
+    if (!$categoryMappingStore->getId())
+      $categoryMappingStore = null;
+
     $useProductPopulateDefaults
        = Mage::getStoreConfig('webtoprint/settings/products-populate-defaults');
 
     $_defaultCategory = array();
 
-    $helper = Mage::helper('webtoprint');
+    $helper = Mage::helper('webtoprint/category');
 
     $line = 0;
 
@@ -99,12 +115,8 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
       if (!$sourceProduct) {
         $product_model = Mage::getModel('catalog/product');
 
-        if (Mage::app()->isSingleStoreMode())
-          $product_model->setWebsiteIds(array(Mage::app()->getStore(true)->getWebsite()->getId()));
-        else
-          $this->debug('Not a single store mode');
-
         $product_model
+          ->setWebsiteIds($assignToWebsites)
           ->setAttributeSetId($product_model->getDefaultAttributeSetId())
           ->setTypeId($this->getAction()->getParam('product-type', 'simple'))
           ->setStatus(Mage_Catalog_Model_Product_Status::STATUS_DISABLED)
@@ -119,46 +131,23 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
             ->setTaxClassId(0);
         }
 
-        $categoryName = $cataloguesMapping[$template->getCatalogGuid()];
+        $templateDetails = zetaprints_parse_template_details(
+          new SimpleXMLElement($template->getXml())
+        );
 
-        if (!array_key_exists($categoryName, $_catalogues)) {
-          $category = $helper->getCategory(
-                               $cataloguesMapping[$template->getCatalogGuid()]);
+        $templateDetails['catalogue']
+          = $cataloguesMapping[$template->getCatalogGuid()];
 
-          if ($category && $category->getId())
-            $_catalogues[$categoryName] = $category;
-          else
-            $_catalogues[$categoryName] = null;
-        }
+        $categoryIds = $helper->getCategoriesIds(
+          $templateDetails,
+          $assignToParents,
+          $categoryMappingStore
+        );
 
-        if ($category = $_catalogues[$categoryName]) {
-          $categoryIds = array($category->getId());
+        if (!$categoryIds && $useProductPopulateDefaults)
+          $categoryIds = $this->_getDefaultCategoryId();
 
-          try {
-            $templateDetails = zetaprints_parse_template_details(
-                                     new SimpleXMLElement($template->getXml()));
-
-            if ($templateDetails && isset($templateDetails['tags']))
-              foreach ($templateDetails['tags'] as $tag) {
-                $subCategoryName = "{$categoryName}/{$tag}";
-
-                if (!array_key_exists($subCategoryName, $_catalogues)) {
-                  $subCategory = $helper->getCategory($tag, false, $category);
-
-                  if ($subCategory && $subCategory->getId())
-                    $_catalogues[$subCategoryName] = $subCategory;
-                  else
-                    $_catalogues[$subCategoryName] = null;
-                }
-
-                if ($subCategory = $_catalogues[$subCategoryName])
-                  $categoryIds[] = $subCategory->getId();
-              }
-          } catch (Exception $e) {}
-
-          $product_model->setCategoryIds($categoryIds);
-        } else if ($useProductPopulateDefaults)
-          $product_model->setCategoryIds($this->_getDefaultCategoryId());
+        $product_model->setCategoryIds($categoryIds);
       } else {
         $product_model = $sourceProduct;
 
@@ -175,9 +164,20 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
         ->setRequiredOptions(true)
         ->setWebtoprintTemplate($template->getGuid());
 
+      Mage::dispatchEvent(
+        'webtoprint_product_create',
+        array(
+          'product' => $product_model,
+          'template' => $templateDetails,
+          'params' => array(
+            'process-quantities' => $this->_isProcessQuantities()
+          )
+        )
+      );
+
       try {
         $product_model->save();
-      } catch (Zend_Http_Client_Exception $e) {
+      } catch (Exception $e) {
         $this->error("{$line}. Error creating product from template: {$template->getGuid()}");
         $this->error($e->getMessage());
 
@@ -275,6 +275,46 @@ class ZetaPrints_WebToPrint_Model_Convert_Mapper_Product_Creating
 
       return array();
     }
+  }
+
+  protected function _getWebsitesForAssign () {
+    if (count(Mage::app()->getWebsites()) < 2)
+      return array(Mage::app()->getWebsite(true)->getId());
+
+    $websites = Mage::getStoreConfig('webtoprint/settings/assign-to-websites');
+
+    if (!$websites) {
+      $url = Mage::getModel('adminhtml/url')->getUrl(
+        'adminhtml/system_config/edit',
+        array(
+          'section' => 'webtoprint',
+          '_fragment' => 'row_webtoprint_settings_assign-to-stores')
+      );
+
+      $msg = 'Magento installation has multiple websites. Please select '
+             . 'website(s) in Assign new products to website(s) setting on '
+             . '<a href="' . $url . '">web-to-print settings page.</a> '
+             . 'Newly created products will be assigned to selected website(s)';
+
+      $this->error($msg);
+
+      return;
+    }
+
+    return explode(',', $websites);
+  }
+
+  protected function _isProcessQuantities () {
+    $value = $this
+      ->getAction()
+      ->getParam('process-quantities', false);
+
+    if ($value === false)
+      return false;
+
+    $value = trim($value);
+
+    return $value == 'true' || $value == 'yes' || $value == '1';
   }
 
   private function error ($message) {

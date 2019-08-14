@@ -278,15 +278,19 @@ function zetaprints_parse_template_details ($xml) {
       'color-picker' => isset($image['ColourPicker'])
                             ? (string) $image['ColourPicker'] : null,
       'allow-upload' => isset($image['AllowUpload'])
-                            ? (bool) $image['AllowUpload'] : false,
+                            ? (bool)(string) $image['AllowUpload'] : false,
       'allow-url' => isset($image['AllowUrl'])
-                            ? (bool) $image['AllowUrl'] : false,
+                            ? (bool)(string) $image['AllowUrl'] : false,
       'clipped' => isset($image['Clipped'])
                             ? (bool) $image['Clipped'] : false,
+      'palette' => isset($image['Palette']) ? (string) $image['Palette'] : null,
       //We get lowercase GUID in value for user images.
       //Convert to uppercase while the issue will be fixed in ZP side
       'value' => isset($image['Value'])
                    ? strtoupper((string) $image['Value']) : null );
+
+    if ($image_array['palette'])
+      $paletteToNameMap[$image_array['palette']][] = $image_array['name'];
 
     if ($image->StockImage) {
       $image_array['stock-images'] = array();
@@ -339,8 +343,12 @@ function zetaprints_parse_template_details ($xml) {
                            ? (int) $field['StoryAsDefault'] : null,
       'combobox' => isset($field['Combobox'])
                            ? (bool) $field['Combobox'] : false,
+      'palette' => isset($image['Palette']) ? (string) $image['Palette'] : null,
       'value' => isset($field['Value'])
                    ? (string) $field['Value'] : null );
+
+    if ($field_array['palette'])
+      $paletteToNameMap[$field_array['palette']][] = $field_array['name'];
 
     if ($field->Value) {
       $field_array['values'] = array();
@@ -411,6 +419,34 @@ function zetaprints_parse_template_details ($xml) {
 
     if (count($tags))
       $template['tags'] = $tags;
+  }
+
+  if ($xml->Quantities) foreach ($xml->Quantities->Quantity as $quantity)
+    $template['quantities'][] = array(
+      'price' => (float) $quantity['Price'],
+      'title' => (string) $quantity['Title'],
+    );
+
+  if ($xml->Palettes) foreach ($xml->Palettes->Palette as $palette) {
+    $paletteId = (string) $palette['ID'];
+
+    $_palette = array(
+      'names' => (string) $palette['Names'],
+      'title' => isset($paletteToNameMap[$paletteId])
+                   ? implode(', ', $paletteToNameMap[$paletteId])
+                     : (string) $palette['Names'],
+      'any_colour' => isset($palette['AnyColor'])
+                        ? (bool) $palette['AnyColor']
+                          : false
+    );
+
+    foreach ($palette->Color as $colour)
+      $_palette['colours'][(string) $colour['ID']] = array(
+        'fill_rgb' => (string) $colour['FillRGB'],
+        'outline_rgb' => (string) $colour['OutlineRGB']
+      );
+
+    $template['palettes'][$paletteId] = $_palette;
   }
 
   _zetaprints_debug(array('template' => $template));

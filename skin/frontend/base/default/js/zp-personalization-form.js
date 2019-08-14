@@ -211,6 +211,69 @@ function personalization_form ($) {
     return false;
   }
 
+  function store_user_data (page) {
+    var name,
+        fields = page.fields,
+        images = page.images;
+
+    for (name in fields)
+      if (fields.hasOwnProperty(name)) {
+        if (!fields[name].value)
+          fields[name].value = '';
+
+        fields[name].previous_value = fields[name].value;
+      }
+
+    for (name in images)
+      if (images.hasOwnProperty(name)) {
+        if (!images[name].value)
+          images[name].value = '#';
+
+        images[name].previous_value = images[name].value;
+      }
+  }
+
+  function is_user_data_changed (page) {
+    var name,
+        fields = page.fields,
+        images = page.images;
+
+    for (name in fields)
+      if (fields.hasOwnProperty(name))
+        if (typeof fields[name].previous_value != 'undefined')
+          if (fields[name].previous_value != fields[name].value)
+            return true;
+
+    for (name in images)
+      if (images.hasOwnProperty(name))
+        if (typeof images[name].previous_value != 'undefined')
+          if (images[name].previous_value != images[name].value)
+            return true;
+
+    return false;
+  }
+
+  function page_get_changed (pages) {
+    var n,
+        changed_pages = [];
+
+    for (n in pages)
+      if (pages.hasOwnProperty(n))
+        if (is_user_data_changed(pages[n]))
+          changed_pages[changed_pages.length] = n;
+
+    return changed_pages;
+  }
+
+  function page_has_updating (pages) {
+    for (var n in pages)
+      if (pages.hasOwnProperty(n))
+        if (typeof pages[n].is_updating != 'undefined' && pages[n].is_updating)
+          return true;
+
+    return false;
+  }
+
   //Set current template page to the first (1-based index)
   this.current_page = 1;
 
@@ -297,7 +360,7 @@ function personalization_form ($) {
   //If update_first_preview_on_load parameter was set
   if (this.update_first_preview_on_load)
     //Update preview for the first page
-    update_preview({ data: { zp: this } }, zp.preserve_fields);
+    update_preview({ data: { zp: this } }, undefined, zp.preserve_fields);
 
   //Create array for preview images sharing links
   if (window.place_preview_image_sharing_link)
@@ -342,13 +405,9 @@ function personalization_form ($) {
       else
         $next_page_button.hide();
 
-      //Enable Update preview action
-      $update_preview_button.unbind('click');
-      $update_preview_button.click({zp: zp}, update_preview);
-
-      var page = zp
-                   .template_details
-                   .pages[event.data.page_number];
+      var pages = zp.template_details.pages,
+          page_number = event.data.page_number,
+          page = pages[page_number];
 
       if (page.preview_is_scaled === undefined) {
         var $_img = $(this)
@@ -367,21 +426,26 @@ function personalization_form ($) {
       //If no image zoomer on the page and image is for the first page
       //and first page was opened
       if (!has_image_zoomer) {
-        if (event.data.page_number == 1 && zp.current_page == 1) {
+        if (page_number == 1 && zp.current_page == 1) {
           //then show preview for the first page
           $('#preview-image-page-1').removeClass('zp-hidden');
         }
 
-        var current_page = zp
-                             .template_details
-                             .pages[zp.current_page]
+        var current_page = pages[zp.current_page]
 
-        if (event.data.page_number == zp.current_page
-            && !current_page.preview_is_scaled)
+        if (page_number == zp.current_page && !current_page.preview_is_scaled)
           $enlarge_button.addClass('zp-hidden');
       }
 
-      hide_activity();
+      page.is_updating = false;
+
+      if (!page_has_updating(pages)) {
+        //Enable Update preview action
+        $update_preview_button.unbind('click');
+        $update_preview_button.click({zp: zp}, update_preview);
+
+        hide_activity();
+      }
     });
   }
 
@@ -446,6 +510,12 @@ function personalization_form ($) {
   $('<input type="hidden" name="zetaprints-previews" value="' +
                       export_previews_to_string(this.template_details) + '" />')
     .appendTo($('#product_addtocart_form'));
+
+  $add_to_cart_button.parent().before(
+    '<div id="zp-warning-user-data-changed" class="zetaprints-notice">' +
+      window.warning_user_data_changed +
+    '</div>'
+  );
 
   if (is_all_pages_updated(this.template_details)
       || (has_updated_pages(this.template_details)
@@ -576,6 +646,11 @@ function personalization_form ($) {
     else
       $('#zp-dataset-button').addClass('hidden');
 
+    if (is_user_data_changed(page))
+      $product_form.addClass('zp-user-data-changed');
+    else
+      $product_form.removeClass('zp-user-data-changed');
+
     if (can_show_next_page_button_for_page(zp.current_page, zp))
       $next_page_button.show();
     else
@@ -584,6 +659,22 @@ function personalization_form ($) {
 
   if (window.zp_dataset_initialise)
     zp_dataset_initialise(zp);
+
+  if (typeof window.productAddToCartForm == 'object')
+    if (typeof window.productAddToCartForm.submit == 'function') {
+      var func = window.productAddToCartForm.submit;
+
+      window.productAddToCartForm.submit = function (button, url) {
+        var text = window.notice_update_preview_after_data_changed,
+            pages = zp.template_details.pages,
+            changed_pages = page_get_changed(pages);
+
+        if (changed_pages.length > 0 && confirm(text))
+          return update_preview({ data: { zp: zp } }, changed_pages);
+
+        func(button, url);
+      };
+    }
 
   function update_preview_sharing_link_for_page (page_number, links, filename) {
     links[page_number] = preview_image_sharing_link_template + filename;
@@ -604,41 +695,31 @@ function personalization_form ($) {
   }
 
   function prepare_post_data_for_php (data) {
-    var _data = '';
+    for (var i = 0, l = data.length; i < l; i++)
+      data[i].name = prepare_string_for_php(data[i].name);
 
-    data = data.split('&');
-    for (var i = 0; i < data.length; i++) {
-      var token = data[i].split('=');
-      _data += '&' + prepare_string_for_php(token[0]) + '=' + token[1];
-    }
-
-    return _data.substring(1);
+    return data;
   }
 
-  function prepare_metadata_from_page (page) {
-    var metadata = '';
+  function prepare_metadata_from_page (page, data) {
+    var metadata,
+        l = data.length;
 
-    for (name in page.images) {
-      var field_metadata = zp_convert_metadata_to_string(page.images[name]);
+    for (var name in page.images)
+      if (metadata = zp_convert_metadata_to_string(page.images[name]))
+        data[l++] = {
+          name: 'zetaprints-*#' + prepare_string_for_php(name),
+          value: metadata
+        };
 
-      if (!field_metadata)
-        continue;
+    for (var name in page.fields)
+      if (metadata = zp_convert_metadata_to_string(page.fields[name]))
+        data[l++] = {
+          name: 'zetaprints-*_' + prepare_string_for_php(name),
+          value: metadata
+        };
 
-      metadata += '&zetaprints-*#' + prepare_string_for_php(name) + '='
-                  + field_metadata + '&';
-    }
-
-    for (var name in page.fields) {
-      var field_metadata = zp_convert_metadata_to_string(page.fields[name]);
-
-      if (!field_metadata)
-        continue;
-
-      metadata += '&zetaprints-*_' + prepare_string_for_php(name) + '='
-                  + field_metadata + '&';
-    }
-
-    return metadata;
+    return data;
   }
 
   function serialize_fields_for_page (page_number) {
@@ -646,14 +727,26 @@ function personalization_form ($) {
                                                                   + page_number)
       .find('.zetaprints-field')
       .filter(':text, textarea, :checked, select, [type="hidden"]')
-      .serialize();
+      .serializeArray();
   }
 
   var _number_of_failed_updates = 0;
 
-  function update_preview (event, preserve_fields) {
+  function update_preview (event, update_pages, preserve_fields) {
+    var zp = event.data.zp,
+        current_page;
+
+    //!!!TODO: workaround
+    //Remember page number
+    current_page = typeof update_pages == 'undefined'
+                     ? zp.current_page
+                       : update_pages.shift();
+
+    if (typeof current_page == 'undefined')
+      return;
+
     //Disable click action
-    $(this).unbind(event);
+    $update_preview_button.unbind('click');;
 
     show_activity();
 
@@ -663,19 +756,6 @@ function personalization_form ($) {
 
         $(this).text_field_editor('hide');
       });
-
-    //Convert preserve_field parameter to query parameter
-    var preserve_fields = typeof(preserve_fields) != 'undefined'
-      && preserve_fields ? '&zetaprints-Preserve=yes' : preserve_fields = '';
-
-    var zp = event.data.zp;
-
-    //!!! Workaround
-    //Remember page number
-    var current_page = zp.current_page;
-
-    var metadata =
-         prepare_metadata_from_page(zp.template_details.pages[zp.current_page]);
 
     function update_preview_error () {
       if (++_number_of_failed_updates >= 2){
@@ -689,16 +769,35 @@ function personalization_form ($) {
 
       $update_preview_button.click({zp: zp}, update_preview);
 
+      page_.is_updating = false;
+
       hide_activity();
     }
+
+        //!!!TODO: Variable name should be fixed
+    var page_ = zp.template_details.pages[current_page],
+        data = prepare_metadata_from_page(
+          page_,
+          prepare_post_data_for_php(serialize_fields_for_page(current_page))
+        );
+
+    page_.is_updating = true;
+
+    data[data.length] = {
+      name: 'zetaprints-TemplateID',
+      value: zp.template_details.guid
+    };
+
+    data[data.length] = { name: 'zetaprints-From', value: current_page };
+
+    if (preserve_fields)
+      data[data.length] = { name: 'zetaprints-Preserve', value: 'yes'};
 
     $.ajax({
       url: zp.url.preview,
       type: 'POST',
       dataType: 'json',
-      data: prepare_post_data_for_php(serialize_fields_for_page(current_page))
-        + '&zetaprints-TemplateID=' + zp.template_details.guid
-        + '&zetaprints-From=' + current_page + preserve_fields + metadata,
+      data: $.param(data),
 
       error: function (XMLHttpRequest, textStatus, errorThrown) {
         update_preview_error();
@@ -792,6 +891,8 @@ function personalization_form ($) {
             set_preview_sharing_link_for_page(current_page,
                                                       zp.preview_sharing_links);
 
+          $product_form.removeClass('zp-user-data-changed');
+
           if (is_all_pages_updated(zp.template_details)
               || zp.template_details.missed_pages == 'include'
               || zp.template_details.missed_pages == '') {
@@ -802,7 +903,18 @@ function personalization_form ($) {
             $('div.zetaprints-notice.to-update-preview').addClass('zp-hidden');
             remove_fake_add_to_cart_button($add_to_cart_button);
             $('div.save-order span').css('display', 'none');
-          }
+
+            var n,
+                pages = zp.template_details.pages;
+
+            for (n in pages)
+              if (pages.hasOwnProperty(n))
+                store_user_data(pages[n]);
+          } else
+            store_user_data(page_);
+
+          if (typeof update_pages != 'undefined' && update_pages.length > 0)
+            update_preview(event, update_pages, preserve_fields);
         }
       }
     });
@@ -930,9 +1042,28 @@ function personalization_form ($) {
       $selector = $content.data('in-preview-edit').parent;
     }
 
-    var zp = event.data.zp;
+    var $this = $(event.target),
 
-    if ($(event.target).val().length) {
+        name = $this.attr('name').substring(12),
+        value = $this.val(),
+        has_value = !!value.length,
+
+        zp = event.data.zp,
+        page = zp.template_details.pages[zp.current_page],
+        image = page.images[name];
+
+    if (image) {
+      image.value = value;
+
+      if (typeof image.previous_value != 'undefined') {
+        if (image.previous_value != value)
+          $product_form.addClass('zp-user-data-changed');
+        else
+          $product_form.removeClass('zp-user-data-changed');
+      }
+    }
+
+    if (has_value) {
       $selector.removeClass('no-value');
 
       $('#fancybox-outer').addClass('modified');
@@ -941,8 +1072,7 @@ function personalization_form ($) {
       //If ZetaPrints advanced theme is enabled then...
       if (window.mark_shape_as_edited)
         //... mark shape as edited then image is seleсted
-        mark_shape_as_edited(zp.template_details.pages[zp.current_page]
-                           .shapes[$(event.target).attr('name').substring(12)]);
+        mark_shape_as_edited(page.shapes[name]);
     } else {
       $selector.addClass('no-value');
 
@@ -951,8 +1081,7 @@ function personalization_form ($) {
       //If ZetaPrints advanced theme is enabled then...
       if (window.unmark_shape_as_edited)
         //or unmark shape then Leave blank is selected
-        unmark_shape_as_edited(zp.template_details.pages[zp.current_page]
-                           .shapes[$(event.target).attr('name').substring(12)]);
+        unmark_shape_as_edited(page.shapes[name]);
     }
   }
 
@@ -962,7 +1091,7 @@ function personalization_form ($) {
   }
 
   zp.show_colorpicker = function ($panel) {
-    if ($panel.hasClass('color-picker')
+    if (($panel.hasClass('color-picker') || $panel.hasClass('colour-picker'))
         && !$panel.find('input').prop('checked'))
       $panel.find('.color-sample').click();
   }
@@ -1039,7 +1168,9 @@ function personalization_form ($) {
           if ($field.hasClass('minimized')) {
             $field.removeClass('minimized');
 
-            $panel = $panels.not('.ui-tabs-hide');
+            var $panel = $field.hasClass('zetaprints-palette')
+                           ?  $content
+                             : $panels.not('.ui-tabs-hide');
 
             zp.show_colorpicker($panel);
             scroll_strip($panel)
@@ -1084,13 +1215,15 @@ function personalization_form ($) {
             return false;
           });
 
-        var $colour_picker_panel = $panels.filter('.color-picker');
+        var $colour_picker_panel = $panels
+                                     .filter('.color-picker')
+                                     .add($field.find('.colour-picker'));
 
         if (!$colour_picker_panel.length)
           return;
 
         var $colour_radio_button = $colour_picker_panel
-                                   .children('.zetaprints-field');
+                                   .find('.zetaprints-field');
 
         var $colour_sample = $colour_picker_panel.children('.color-sample')
 
@@ -1321,15 +1454,56 @@ function personalization_form ($) {
       return false;
   });
 
+  function shape_update_state (shape, state) {
+    if (state)
+      return mark_shape_as_edited(shape);
+
+    var names = shape.name.split('; ');
+
+    if (names.length == 1)
+      return unmark_shape_as_edited(shape);
+
+    $fields = $('#input-fields-page-' + zp.current_page)
+      .find('input, textarea, select')
+      .filter('textarea, select, :text, :checked');
+
+    $images = $('#stock-images-page-' + zp.current_page)
+      .find('input')
+      .filter(':checked');
+
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+
+      if ($fields.filter('[name="zetaprints-_' + name +'"]').val()
+          || $images.filter('[name="zetaprints-#' + name +'"]').length)
+        return;
+    }
+
+
+    unmark_shape_as_edited(shape);
+  }
+
   function text_fields_change_handle (event) {
-    var zp = event.data.zp;
+    var $this = $(this),
 
-    var $target = $(this);
+        name = $this.attr('name').substring(12),
+        value = $this.is(':checkbox') ? $this.is(':checked') : $this.val(),
+        state = !!value,
 
-    if ($target.is(':checkbox'))
-      var state = $target.is(':checked');
-    else
-      var state = $(this).val() != '';
+        zp = event.data.zp,
+        page = zp.template_details.pages[zp.current_page],
+        field = page.fields[name];
+
+    if (field) {
+      field.value = value;
+
+      if (typeof field.previous_value != 'undefined') {
+        if (field.previous_value != value)
+          $product_form.addClass('zp-user-data-changed');
+        else
+          $product_form.removeClass('zp-user-data-changed');
+      }
+    }
 
     if (state) {
       $('#fancybox-outer').addClass('modified');
@@ -1341,41 +1515,14 @@ function personalization_form ($) {
         && window.mark_shape_as_edited
         && window.unmark_shape_as_edited) {
 
-      var shape = get_shape_by_name($target.attr('name').substring(12),
-                             zp.template_details.pages[zp.current_page].shapes);
+      var shape = get_shape_by_name(name, page.shapes);
 
-      if (!shape)
-        return;
-
-      if (state)
-        mark_shape_as_edited(shape);
-      else {
-        var names = shape.name.split('; ');
-
-        if (names.length != 1) {
-          $text_fields = $('#input-fields-page-' + zp.current_page)
-                      .find('input, textarea, select')
-                      .filter('textarea, select, :text, :checked');
-
-          $image_fields = $('#stock-images-page-' + zp.current_page)
-                            .find('input')
-                            .filter(':checked');
-
-          for (var i = 0; i < names.length; i++) {
-            var name = names[i];
-
-            if ($text_fields.filter('[name="zetaprints-_' + name +'"]').val() ||
-                $image_fields.filter('[name="zetaprints-#' + name +'"]').length)
-              return;
-          }
-        }
-
-        unmark_shape_as_edited(shape);
-      }
+      if (shape)
+        shape_update_state(shape, state);
     }
 
     if (window.zp_dataset_update_state)
-      zp_dataset_update_state(zp, $target.attr('name').substring(12), false);
+      zp_dataset_update_state(zp, name, false);
   }
 
   function readonly_fields_click_handle (event) {
@@ -1505,6 +1652,32 @@ function personalization_form ($) {
       zp_set_metadata(field, metadata);
     } else
       zp_clear_metadata(field);
+  });
+
+  $('.zetaprints-palettes .zetaprints-field').change(function () {
+    var $this = $(this);
+
+    var id = $this
+               .attr('name')
+               .substring(12);
+
+    var colour = $this.val();
+
+    for (var page in zp.template_details.pages) {
+      for (var field in zp.template_details.pages[page].fields) {
+        var field = zp.template_details.pages[page].fields[field];
+
+        if (field.palette == id)
+          zp_set_metadata(field, { 'col-f': colour });
+      }
+
+      for (var image in zp.template_details.pages[page].images) {
+        var image = zp.template_details.pages[page].images[image];
+
+        if (image.palette == id)
+          zp_set_metadata(image, { 'col-f': colour });
+      }
+    }
   });
 
   if (this.has_shapes && window.add_in_preview_edit_handlers)

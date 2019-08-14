@@ -2,7 +2,7 @@
 <config>
   <modules>
     <ZetaPrints_WebToPrint>
-      <version>14</version>
+      <version>15</version>
     </ZetaPrints_WebToPrint>
   </modules>
 
@@ -41,6 +41,12 @@
           <quote_item>ZetaPrints_WebToPrint_Model_Quote_Item</quote_item>
         </rewrite>
       </sales>
+
+      <wishlist>
+        <rewrite>
+          <item>ZetaPrints_WebToPrint_Model_Item</item>
+        </rewrite>
+      </wishlist>
     </models>
 
     <blocks>
@@ -53,6 +59,13 @@
           <html_footer>ZetaPrints_WebToPrint_Block_Html_Footer</html_footer>
         </rewrite>
       </page>
+
+      <wishlist>
+        <rewrite>
+          <customer_sidebar>ZetaPrints_WebToPrint_Block_Customer_Sidebar</customer_sidebar>
+          <customer_wishlist_item_column_comment>ZetaPrints_WebToPrint_Block_Customer_Wishlist_Item_Column_Comment</customer_wishlist_item_column_comment>
+        </rewrite>
+      </wishlist>
     </blocks>
 
     <helpers>
@@ -266,6 +279,10 @@
         <sales-web-to-print-order>
           <file>sales/web-to-print-order.xml</file>
         </sales-web-to-print-order>
+
+        <wishlist-web-to-print>
+          <file>wishlist/web-to-print.xml</file>
+        </wishlist-web-to-print>
       </updates>
     </layout>
   </frontend>

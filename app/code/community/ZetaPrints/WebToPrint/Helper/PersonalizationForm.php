@@ -159,7 +159,7 @@ class ZetaPrints_WebToPrint_Helper_PersonalizationForm
     return false;
   }
 
-  public function get_cart_image ($context) {
+  public function get_cart_image ($context, $width = 0, $height = 0) {
     $options = unserialize($context->getItem()->getOptionByCode('info_buyRequest')->getValue());
 
     if (!isset($options['zetaprints-previews'])
@@ -187,7 +187,11 @@ class ZetaPrints_WebToPrint_Helper_PersonalizationForm
       } else
         echo "<a class=\"in-dialog product-image\" href=\"$href\" rel=\"{$group}\" style=\"display: none\">";
 
-      echo "<img src=\"$src\" style=\"max-width: 75px;\" />";
+      $style = $width
+                 ? 'style="max-width: ' . $width . 'px;"'
+                   : 'style="max-width: 75px;"';
+
+      echo '<img src="', $src, '" ', $style, ' />';
       echo "</a>";
     }
 
@@ -1172,6 +1176,8 @@ jQuery(document).ready(function($) {
   uploading_image_error_text = "<?php echo $this->__('Error was occurred while uploading image'); ?>";
   notice_to_update_preview_text = "<?php echo $this->__('Update preview first!'); ?>";
   notice_to_update_preview_text_for_multipage_template = "<?php echo $this->__('Update all previews first!'); ?>";
+  warning_user_data_changed = "<?php echo $this->__('Press Update Preview before adding to cart to include your latest changes'); ?>";
+  notice_update_preview_after_data_changed = "<?php echo $this->__('Do you want to update the preview with your latest changes?'); ?>";
 
   click_to_close_text = "<?php echo $this->__('Click to close'); ?>";
   click_to_view_in_large_size = "<?php echo $this->__('Click to view in large size');?>";
