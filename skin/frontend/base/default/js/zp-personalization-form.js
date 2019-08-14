@@ -20,7 +20,7 @@ function personalization_form ($) {
       return;
 
     if (metadata) {
-      metadata['img-id'] = $input.attr('value');
+      metadata['img-id'] = $input.val();
 
       zp_set_metadata(zp.image_edit.placeholder, metadata);
     } else
@@ -174,6 +174,20 @@ function personalization_form ($) {
     $preview_overlay.removeClass('zp-hidden');
   }
 
+  var $_preview_placeholder = null;
+
+  function add_preview_placeholder () {
+    $_preview_placeholder = $('<div id="zp-preview-placeholder" />')
+                              .appendTo(product_image_element);
+  }
+
+  function remove_preview_placeholder () {
+    if ($_preview_placeholder)
+      $_preview_placeholder.remove();
+
+    $_preview_placeholder = null;
+  }
+
   function enlarge_editor_click_handler () {
     if ($('#fancybox-wrap').is(':visible'))
       $.fancybox.close();
@@ -239,19 +253,23 @@ function personalization_form ($) {
   var $update_preview_button = $('#zp-update-preview-form-button');
   var $next_page_button = $('#zp-next-page-button');
 
-  //If base image is not set or it's personalization step (for 2-step theme)
-  if (this.is_personalization_step || !has_image_zoomer) {
+  //If personalization step (for 2-step theme) and base image is set...
+  if (zp.is_personalization_step && has_image_zoomer) {
+    //... then remove zoomer functionality
     $(product_image_element).removeClass('product-image-zoom');
+    $('#image, #track_hint, div.zoom').remove();
 
+    has_image_zoomer = false;
+  }
+
+  //If base image is not set...
+  if (!has_image_zoomer) {
     //then remove all original images placed by M., zoomer and base image
     $(product_image_element)
       .empty();
 
     //Add preview image placeholder
-    var $preview_placeholder = $('<div id="zp-preview-placeholder" />')
-                                 .appendTo(product_image_element);
-
-    has_image_zoomer = false;
+    add_preview_placeholder();
   }
 
   var $preview_overlay = $('<div id="zp-preview-overlay" class="zp-no-preview">' +
@@ -288,7 +306,12 @@ function personalization_form ($) {
 
   //Add previews to the product page
   for (var page_number in this.template_details.pages) {
-    if (this.template_details.pages[page_number]['updated-preview-url']) {
+    //Don't load default image for the first page when updating it
+    //on page loading. Otherwise the activity disappers after the default image
+    //is loaded but before the image is updated.
+    if (page_number == 1 && this.update_first_preview_on_load)
+      var url = '';
+    else if (this.template_details.pages[page_number]['updated-preview-url']) {
       var url
             = this.template_details.pages[page_number]['updated-preview-url'];
 
@@ -309,8 +332,7 @@ function personalization_form ($) {
     .children()
     .bind('load', {page_number: page_number}, function (event) {
       //Remove preview image placeholder
-      if ($preview_placeholder)
-        $preview_placeholder.remove();
+      remove_preview_placeholder();
 
       $preview_overlay.removeClass('zp-no-preview');
 
@@ -410,10 +432,15 @@ function personalization_form ($) {
   $('div.zetaprints-image-tabs li:first').addClass('selected');
 
   $('div.tab.user-images').each(function() {
-    var tab_button = $('ul.tab-buttons li.hidden', $(this).parents('div.selector-content'));
+    var $this = $(this);
 
-    if ($('td', this).length > 0)
-      $(tab_button).removeClass('hidden');
+    //It's not empty when it has more than 1 child
+    //because first child is template element
+    if ($this.find('td').length > 1)
+      $this
+        .parents('.selector-content')
+        .find('> .tab-buttons > .hidden')
+        .removeClass('hidden');
   });
 
   $('<input type="hidden" name="zetaprints-previews" value="' +
@@ -742,8 +769,9 @@ function personalization_form ($) {
             $(product_image_element).removeClass('product-image-zoom');
             $('#image, #track_hint, div.zoom').remove();
             has_image_zoomer = false;
-            //and show preview image for the current page
-            $('#preview-image-page-1').removeClass('zp-hidden');
+
+            //Add preview placeholder
+            add_preview_placeholder();
 
             //Add all shapes to personalization form after first preview
             //update
@@ -930,7 +958,7 @@ function personalization_form ($) {
 
   zp.show_colorpicker = function ($panel) {
     if ($panel.hasClass('color-picker')
-        && !$panel.find('input').attr('checked'))
+        && !$panel.find('input').prop('checked'))
       $panel.find('.color-sample').click();
   }
 
@@ -1089,10 +1117,10 @@ function personalization_form ($) {
             $colour_sample.css('backgroundColor', '#' + hex);
 
             $colour_radio_button
-              .removeAttr('disabled')
+              .prop('disabled', false)
               .val('#' + hex)
               .change()
-              .attr('checked', 'checked');
+              .prop('checked', true);
 
             $(picker).ColorPickerHide();
           }
@@ -1227,7 +1255,7 @@ function personalization_form ($) {
     var $input = $target.parent().children('input');
 
     show_image_edit_dialog($input.attr('name').substring(12),
-                           $input.attr('value'),
+                           $input.val(),
                            $target.children('img') );
 
     return false; 
@@ -1354,7 +1382,7 @@ function personalization_form ($) {
       $(this)
         .unbind(event)
         .val('')
-        .removeAttr('readonly');
+        .prop('readonly', false);
 
       //Workaround for IE browser.
       //It moves cursor to the end of input field after focus.
@@ -1383,7 +1411,7 @@ function personalization_form ($) {
     event.stopPropagation();
 
     if (confirm(delete_this_image_text)) {
-      var image_id = $(this).parents('td').children('input').attr('value');
+      var image_id = $(this).parents('td').children('input').val();
 
       $.ajax({
         url: zp.url.image,
@@ -1410,7 +1438,6 @@ function personalization_form ($) {
         alert(status + ' ' + error);
       },
       success: function (data, status) {
-        console.log(data);
         add_image_to_gallery(data.guid, data.thumbnail_url);
 
         zp.image_edit.reload_image(data.guid);
@@ -1434,7 +1461,7 @@ function personalization_form ($) {
 
       $td
         .children('.zetaprints-field')
-        .attr('value', guid)
+        .val(guid)
         .change({ zp: zp }, image_field_select_handler);
 
       $td
@@ -1468,7 +1495,7 @@ function personalization_form ($) {
     var metadata = $input.data('metadata');
 
     if (metadata) {
-      metadata['img-id'] = $input.attr('value');
+      metadata['img-id'] = $input.val();
 
       zp_set_metadata(field, metadata);
     } else

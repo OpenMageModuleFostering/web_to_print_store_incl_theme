@@ -106,7 +106,7 @@ class ZetaPrints_WebToPrint_Helper_PersonalizationForm
   }
 
   public function is_personalization_step ($context) {
-    return $context->getRequest()->has('personalization') && $context->getRequest()->getParam('personalization') == '1';
+    return $context->getRequest()->getParam('personalization') == '1';
   }
 
   public function get_next_step_url ($context) {
@@ -233,13 +233,14 @@ jQuery(document).ready(function($) {
   }
 
   public function get_preview_image_sharing_link ($context = null) {
-    $media_url = Mage::getModel('catalog/product_media_config')
-                    ->getTmpMediaUrl('previews/');
+    $url = Mage::getModel('catalog/product_media_config')
+             ->getTmpMediaUrl('previews/');
 
-    if(substr($media_url, 0, 1) == '/') {
-      $scheme = $this->_getRequest()->getScheme()
-              == Zend_Controller_Request_Http::SCHEME_HTTPS ? 'https' : 'http';
-      $media_url = $scheme . '://' . $_SERVER['SERVER_NAME'] . $media_url;
+    if(substr($url, 0, 1) == '/') {
+      $url = $this->_getRequest()->getScheme()
+             . '://'
+             . $_SERVER['SERVER_NAME']
+             . $url;
     }
  ?>
 
@@ -251,7 +252,7 @@ jQuery(document).ready(function($) {
 <script type="text/javascript">
 //<![CDATA[
   var place_preview_image_sharing_link = true;
-  var preview_image_sharing_link_template = '<?php echo $media_url; ?>';
+  var preview_image_sharing_link_template = '<?php echo $url; ?>';
 
   jQuery(document).ready(function($) {
     $('#zetaprints-share-link-input').focusout(function() {
@@ -259,11 +260,15 @@ jQuery(document).ready(function($) {
     }).click(function () {
       $(this).select();
     }).select(function () {
+      var guid = zp
+                   .template_details
+                   .pages[zp.current_page]['updated-preview-image'];
+
       $.ajax({
         url: zp.url.preview_download,
         type: 'POST',
         dataType: 'json',
-        data: 'guid=' + zp.previews[zp.current_page - 1],
+        data: 'guid=' + guid,
         error: function (XMLHttpRequest, textStatus, errorThrown) {
           alert(preview_sharing_link_error_text + ': ' + textStatus);
         },
@@ -1040,55 +1045,81 @@ jQuery(document).ready(function($) {
 <?php
   }
 
+  /**
+   * @deprecated Replaced with camelCased version
+   */
   public function get_js ($context) {
-    if (! $template_id = $this->get_template_id($context->getProduct()))
+    return $this->getJs($context);
+  }
+
+  public function getJs ($context) {
+    $product = $context->getProduct();
+
+    if (!$this->get_template_id($product))
       return false;
 
-    if (! $template_details = $this->getTemplateDetailsForCurrentProduct())
+    if (!$details = $this->getTemplateDetailsForCurrentProduct())
       return false;
 
-    $template_details['pages_number'] = count($template_details['pages']);
+    $details['pages_number'] = count($details['pages']);
 
-    $product_name = $context->getProduct()->getName();
+    $name = $product->getName();
 
     $previews = array();
 
-    foreach ($template_details['pages'] as $details) {
-      $guid = explode('preview/', $details['preview-image']);
-      $url = $this->get_preview_url($guid[1]);
+    foreach ($details['pages'] as $page) {
+      $guid = explode('preview/', $page['preview-image']);
 
-      echo '<img src="', $url, '" alt="Printable ', $product_name,
-           '" class="zp-hidden" />';
+      echo '<img src="', $this->get_preview_url($guid[1]), '" alt="Printable ',
+           $name, '" class="zp-hidden" />';
     }
 
     $session = Mage::getSingleton('core/session');
 
     if ($session->hasData('zetaprints-previews')) {
-      $user_input = unserialize($session->getData('zetaprints-user-input'));
+      $userInput = unserialize($session->getData('zetaprints-user-input'));
 
       $session->unsetData('zetaprints-previews');
     }
 
-    //Check that the product page was opened from cart page (need for automatic
-    //first preview update for cross-sell product) or was
-    //requested with for-item parameter.
-    $update_first_preview_on_load = $this->_getRequest()->has('for-item')
-      || (strpos($session->getData('last_url'), 'checkout/cart') !== false
-          && !$context->getProduct()->getConfigureMode())
-      || (isset($_GET['update-first-preview'])
-          && $_GET['update-first-preview'] == '1');
+    $request = $this->_getRequest();
 
-    $has_shapes = false;
+    //Check if the product page is requested with 'for-item' parameter
+    $hasForItem = $request->has('for-item');
 
-    foreach ($template_details['pages'] as $page)
-      if (isset($page['shapes']))
-        $has_shapes = true;
+    //Check if the product page is requested
+    //with 'update-first-preview' parameter
+    $hasUpdateFirstPreview = $request->getParam('update-first-preview') == '1';
 
-    $zp_data = json_encode(array(
-      'template_details' => $template_details,
+    //Check if the product page is requested with 'reorder' parameter
+    $hasReorder = strlen($request->getParam('reorder')) == 36;
+
+    $lastUrl = $session->getData('last_url');
+
+    //Check if the product page is opened from the shopping cart
+    //to update first preview image for cross-sell products)
+    $isFromShoppingCart = strpos($lastUrl, 'checkout/cart') !== false
+                          && !$product->getConfigureMode();
+
+    $updateFirstPreview = $hasForItem
+                          || $hasReorder
+                          || $hasUpdateFirstPreview
+                          || $isFromShoppingCart;
+
+    $hasShapes = false;
+
+    foreach ($details['pages'] as $page)
+      if (isset($page['shapes'])) {
+        $hasShapes = true;
+
+        break;
+      }
+
+    $data = json_encode(array(
+      'template_details' => $details,
       'is_personalization_step' => $this->is_personalization_step($context),
-      'update_first_preview_on_load' => $update_first_preview_on_load,
-      'has_shapes' => $has_shapes,
+      'update_first_preview_on_load' => $updateFirstPreview,
+      'has_shapes' => $hasShapes,
       'w2p_url' => Mage::getStoreConfig('webtoprint/settings/url'),
       'options' => $this->getCustomOptions(),
       'url' => array(
@@ -1098,8 +1129,10 @@ jQuery(document).ready(function($) {
         'upload_by_url' => $this->_getUrl('web-to-print/upload/byurl'),
         'image' => $this->_getUrl('web-to-print/image/update'),
         'user-image-template'
-                 => $this->get_photo_thumbnail_url('image-guid.image-ext'),
-        'edit-image-template' => $this->get_image_editor_url('')  ) ));
+          => $this->get_photo_thumbnail_url('image-guid.image-ext'),
+        'edit-image-template' => $this->get_image_editor_url('')
+      )
+    ));
 ?>
 <script type="text/javascript">
 //<![CDATA[
@@ -1111,12 +1144,12 @@ var userImageThumbSelected = null;  //user selected image to edit
 
 jQuery(document).ready(function($) {
   <?php
-  if (isset($user_input) && is_array($user_input))
-    foreach ($user_input as $key => $value)
-      echo "$('[name=\"$key\"]').val('$value');\n";
+  if (isset($userInput) && is_array($userInput))
+    foreach ($userInput as $key => $value)
+      echo '$(\'[name="' . $key . '"]\').val(\'' . $value . '\');\n';
   ?>
 
-  zp = <?php echo $zp_data ?>;
+  zp = <?php echo $data ?>;
 
   edit_button_text = "<?php echo $this->__('Edit');?>";
   delete_button_text = "<?php echo $this->__('Delete'); ?>";
